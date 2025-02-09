@@ -198,7 +198,7 @@ def generate_ics(events, term_end_date):
         lines.append("END:VEVENT")
     
     lines.append("END:VCALENDAR")
-    return "\njoin(lines)"
+    return "\n".join(lines)  # Fixed: was returning "\njoin(lines)" as a string instead of joining the lines
 
 class ScheduleConverterWindow(QMainWindow):
     """Main window class for the ZewailCalendar application."""
