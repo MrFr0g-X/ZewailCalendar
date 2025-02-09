@@ -57,7 +57,7 @@
 
 ## 📸 Screenshots
 
-![ZewailCalendar Main Window](![image](https://github.com/user-attachments/assets/e56cbc31-2d6e-423b-8983-d6366694a216))
+![ZewailCalendar Main Window]([![image](https://github.com/user-attachments/assets/e56cbc31-2d6e-423b-8983-d6366694a216)](https://imgur.com/a/EI1ianX))
 
 ## 🔧 Building an Executable
 
