@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "ZewailCalendar",
   description: "Convert your Zewail City university schedule into a calendar file in seconds",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

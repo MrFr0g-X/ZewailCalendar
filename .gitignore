@@ -15,7 +15,7 @@ dist/
 
 # Test data / sample files / docs
 Self-Service - My Schedule*
-schedule.ics
+schedule*.ics
 *.docx
 
 # Reference project (design-only, not deployed)

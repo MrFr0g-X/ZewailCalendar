@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Calendar } from "lucide-react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useSession, signIn } from "next-auth/react";
 import FileUpload from "@/components/FileUpload";
 import SchedulePreview from "@/components/SchedulePreview";
 import TermDateSelector from "@/components/TermDateSelector";
 import GenerateButton from "@/components/GenerateButton";
 import SuccessState from "@/components/SuccessState";
-import LiquidGlass from "@/components/LiquidGlass";
 import AuroraBackground from "@/components/AuroraBackground";
 import { parseScheduleHTML, CourseEntry } from "@/lib/scheduleParser";
 import { generateICS, downloadICS, toGoogleCalendarEvents } from "@/lib/icsGenerator";
@@ -93,6 +93,8 @@ const staggerItem = {
 
 export default function Home() {
   const { data: session, status: sessionStatus } = useSession();
+  const isMobile = useIsMobile();
+  const [showLanding, setShowLanding] = useState(true);
   const [step, setStep] = useState<AppStep>("upload");
   const [fileName, setFileName] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseEntry[]>([]);
@@ -279,7 +281,44 @@ export default function Home() {
 
   const isSignedIn = sessionStatus === "authenticated";
 
+  // Skip landing if returning from OAuth redirect (state was saved)
+  useEffect(() => {
+    if (step !== "upload" || fileName) {
+      setShowLanding(false);
+    }
+  }, [step, fileName]);
+
   return (
+    <>
+      {/* Video Landing Intro */}
+      <AnimatePresence>
+        {showLanding && (
+          <motion.div
+            key="landing"
+            className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center"
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <div className="relative w-full max-w-2xl px-4">
+              <video
+                className="w-full rounded-2xl shadow-2xl"
+                autoPlay
+                muted
+                playsInline
+                onEnded={() => setShowLanding(false)}
+                src={isMobile ? "/hero-mobile.mp4" : "/hero-desktop.mp4"}
+              />
+            </div>
+            <button
+              onClick={() => setShowLanding(false)}
+              className="mt-6 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            >
+              Skip intro
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
       <AuroraBackground />
 
@@ -295,10 +334,16 @@ export default function Home() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ ...springTransition, delay: 0.2 }}
+            className="flex justify-center mb-2"
           >
-            <LiquidGlass intensity="sm" className="inline-flex items-center justify-center w-14 h-14 !rounded-2xl mb-2">
-              <Calendar className="w-7 h-7 text-primary" />
-            </LiquidGlass>
+            <Image
+              src="/logo.png"
+              alt="ZewailCalendar"
+              width={72}
+              height={72}
+              className="rounded-2xl"
+              priority
+            />
           </motion.div>
           <motion.h1
             className="text-3xl sm:text-4xl font-bold tracking-tight"
@@ -386,5 +431,6 @@ export default function Home() {
         </motion.footer>
       </div>
     </div>
+    </>
   );
 }
