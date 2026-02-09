@@ -87,7 +87,7 @@ Right-click on the schedule page and choose **Save As**. Save the file as an HTM
 ## Screenshots
 
 ### Web App
-![Web App](https://imgur.com/a/c6ECn8r)
+![Web App](https://imgur.com/a/c6ECn8r.png)
 
 ### Desktop App
 ![Desktop Main Window](https://i.imgur.com/ICIxsQs.png)
