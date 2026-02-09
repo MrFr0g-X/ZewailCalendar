@@ -18,7 +18,7 @@ Upload your saved schedule HTML and export to ICS or directly import into Google
 
 **Tech stack:** Next.js 16, NextAuth.js, Google Calendar API, Tailwind CSS, Framer Motion
 
-![Web App Screenshot](https://imgur.com/a/c6ECn8r)
+![Web App Screenshot](https://i.imgur.com/MZyAr5P.png)
 
 ---
 
@@ -87,7 +87,7 @@ Right-click on the schedule page and choose **Save As**. Save the file as an HTM
 ## Screenshots
 
 ### Web App
-![Web App](https://imgur.com/a/c6ECn8r.png)
+![Web App Screenshot](https://i.imgur.com/MZyAr5P.png)
 
 ### Desktop App
 ![Desktop Main Window](https://i.imgur.com/ICIxsQs.png)
