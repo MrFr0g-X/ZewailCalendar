@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ZewailCalendar Web
 
-## Getting Started
+A full-stack Next.js web application that converts Zewail City university schedules into calendar events. Upload your saved schedule HTML, preview your courses, and export to ICS or directly to Google Calendar.
 
-First, run the development server:
+**Live:** [zewailcalendar.vercel.app](https://zewailcalendar.vercel.app)
+
+## Features
+
+- **HTML Schedule Parsing** — Paste your saved registration page HTML and instantly see all your courses
+- **ICS Export** — Download a standard `.ics` calendar file compatible with any calendar app
+- **Google Calendar Integration** — One-click OAuth sign-in to import events directly into your Google Calendar
+- **Auto-detection** — Automatically detects term dates, course types (Lecture/Lab), meeting times, and locations
+- **Glassmorphism UI** — Liquid glass design with aurora background animations
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router)
+- **Styling:** Tailwind CSS v3, Framer Motion
+- **Auth:** NextAuth.js v4 (Google OAuth)
+- **API:** Google Calendar API via `googleapis`
+- **UI Components:** Radix UI primitives, shadcn/ui
+
+## Local Development
 
 ```bash
+cd web
+cp .env.example .env.local
+# Fill in your Google OAuth credentials and NEXTAUTH_SECRET
+npm install --legacy-peer-deps
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Description |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `NEXTAUTH_URL` | App URL (`http://localhost:3000` for dev) |
+| `NEXTAUTH_SECRET` | Random secret for session encryption |
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+Deployed on [Vercel](https://vercel.com). Set **Root Directory** to `web` in project settings.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Make sure to add `https://your-domain.vercel.app/api/auth/callback/google` as an authorized redirect URI in Google Cloud Console.

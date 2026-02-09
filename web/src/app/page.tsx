@@ -290,31 +290,23 @@ export default function Home() {
 
   return (
     <>
-      {/* Video Landing Intro */}
+      {/* Video Landing Overlay */}
       <AnimatePresence>
         {showLanding && (
           <motion.div
             key="landing"
-            className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center"
+            className="fixed inset-0 z-50 bg-black"
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <div className="relative w-full max-w-2xl px-4">
-              <video
-                className="w-full rounded-2xl shadow-2xl"
-                autoPlay
-                muted
-                playsInline
-                onEnded={() => setShowLanding(false)}
-                src={isMobile ? "/hero-mobile.mp4" : "/hero-desktop.mp4"}
-              />
-            </div>
-            <button
-              onClick={() => setShowLanding(false)}
-              className="mt-6 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-            >
-              Skip intro
-            </button>
+            <video
+              className="w-full h-full object-cover"
+              autoPlay
+              muted
+              playsInline
+              onEnded={() => setShowLanding(false)}
+              src={isMobile ? "/hero-mobile.mp4" : "/hero-desktop.mp4"}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -420,13 +412,24 @@ export default function Home() {
 
         {/* Footer */}
         <motion.footer
-          className="text-center"
+          className="text-center space-y-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
         >
           <p className="text-xs text-muted-foreground/50">
             All processing happens locally in your browser · No data is uploaded
+          </p>
+          <p className="text-[10px] text-muted-foreground/20">
+            developed by{" "}
+            <a
+              href="https://github.com/MrFr0g-X"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-muted-foreground/40 transition-colors"
+            >
+              Hothifa Hamdan
+            </a>
           </p>
         </motion.footer>
       </div>

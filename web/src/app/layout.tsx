@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Instrument_Serif, Inter } from "next/font/google";
 import Providers from "@/components/Providers";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const instrumentSerif = Instrument_Serif({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-display",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+});
 
 export const metadata: Metadata = {
   title: "ZewailCalendar",
@@ -20,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+      <body className={`${instrumentSerif.variable} ${inter.variable} font-display antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>
