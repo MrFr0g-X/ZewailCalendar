@@ -160,8 +160,12 @@ export default function Home() {
     const saved = loadStateFromStorage();
     if (!saved) return;
 
-    // Restore all state
-    setCourses(saved.courses);
+    // Restore all state — rehydrate Date objects that were serialized as strings
+    const rehydrated = saved.courses.map((c) => ({
+      ...c,
+      firstOccurrence: c.firstOccurrence ? new Date(c.firstOccurrence) : null,
+    }));
+    setCourses(rehydrated);
     setFileName(saved.fileName);
     setIcsContent(saved.icsContent);
     setStep(saved.step);
