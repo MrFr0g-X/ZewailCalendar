@@ -1,0 +1,40 @@
+# Secrets and credentials
+client_secret*.json
+.env*.local
+*.pem
+
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Test data / sample files / docs
+Self-Service - My Schedule*
+schedule.ics
+*.docx
+
+# Reference project (design-only, not deployed)
+zewail-crystal-ui-main/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Vercel
+.vercel
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# Next.js generated
+next-env.d.ts
