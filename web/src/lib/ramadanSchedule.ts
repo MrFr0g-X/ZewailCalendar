@@ -164,7 +164,7 @@ export async function fetchRamadanDates(
         // Step 1 – get the Ramadan start date
         const jan1 = new Date(year, 0, 1);
         const res1 = await fetch(
-            `https://ramadan.munafio.com/api/check?date=${formatDateForApi(jan1)}`
+            `/api/ramadan?date=${formatDateForApi(jan1)}`
         );
         if (!res1.ok) return null;
         const data1 = await res1.json();
@@ -187,7 +187,7 @@ export async function fetchRamadanDates(
         const checkEnd = new Date(ramadanStart);
         checkEnd.setDate(checkEnd.getDate() + 30);
         const res2 = await fetch(
-            `https://ramadan.munafio.com/api/check?date=${formatDateForApi(checkEnd)}`
+            `/api/ramadan?date=${formatDateForApi(checkEnd)}`
         );
         if (!res2.ok) {
             // Fallback: assume 30 days
