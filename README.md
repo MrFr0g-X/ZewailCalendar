@@ -11,9 +11,12 @@ Convert your Zewail City university schedule into calendar events. Available as 
 Upload your saved schedule HTML and export to ICS or directly import into Google Calendar with one click.
 
 **Features:**
-- HTML schedule parsing with auto-detection of term dates and course details
+- HTML & MHT/MHTML schedule parsing with auto-detection of term dates and course details
 - ICS calendar export compatible with any calendar app
 - **Google Calendar OAuth integration** — sign in and import events directly without manual ICS upload
+- 🌙 **Ramadan timing support** — auto-detects Ramadan overlap with your term and remaps slot times (V1 with Dhuhr break / V2 continuous). Dynamic Island indicator shows when active
+- **Multi-meeting course editor** — courses with "multiple meeting times" (not included in the HTML) get a settings panel to manually enter day, time, and location for each meeting slot
+- **MHT file support** — upload `.mht` files directly, no need to rename to `.html`
 - Glassmorphism UI with responsive design
 
 **Tech stack:** Next.js 16, NextAuth.js, Google Calendar API, Tailwind CSS, Framer Motion
@@ -60,7 +63,7 @@ Navigate to your schedule page and switch to list view.
 ![Schedule List View](https://i.imgur.com/CFNe5Bb.png)
 
 ### Step 2: Save the Schedule HTML
-Right-click on the schedule page and choose **Save As**. Save the file as an HTML document.
+Right-click on the schedule page and choose **Save As**. Save the file as an HTML document (`.html` or `.mht` — both formats are supported).
 
 ![Save HTML](https://i.imgur.com/EdYPZ2Z.png)
 

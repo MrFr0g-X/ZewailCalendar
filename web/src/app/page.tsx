@@ -13,7 +13,8 @@ import SuccessState from "@/components/SuccessState";
 import AuroraBackground from "@/components/AuroraBackground";
 import LiquidGlass from "@/components/LiquidGlass";
 import RamadanDynamicIsland from "@/components/RamadanDynamicIsland";
-import { parseScheduleHTML, CourseEntry } from "@/lib/scheduleParser";
+import { parseScheduleHTML, CourseEntry, IncompleteCourseEntry } from "@/lib/scheduleParser";
+import MultiMeetingEditor from "@/components/MultiMeetingEditor";
 import { generateICS, downloadICS, toGoogleCalendarEvents } from "@/lib/icsGenerator";
 import { toast } from "@/components/ui/sonner";
 import RamadanScheduleDialog from "@/components/RamadanScheduleDialog";
@@ -26,7 +27,7 @@ import {
 } from "@/lib/ramadanSchedule";
 import { Moon } from "lucide-react";
 
-type AppStep = "upload" | "configure" | "success";
+type AppStep = "upload" | "multi-meeting" | "configure" | "success";
 
 const STORAGE_KEY = "zewailcalendar_state";
 
@@ -111,6 +112,7 @@ export default function Home() {
   const [courses, setCourses] = useState<CourseEntry[]>([]);
   const [termDate, setTermDate] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
+  const [incompleteEntries, setIncompleteEntries] = useState<IncompleteCourseEntry[]>([]);
   const [icsContent, setIcsContent] = useState<string>("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const hasRestoredRef = useRef(false);
@@ -263,8 +265,18 @@ export default function Home() {
         });
       }
 
-      if (result.courses.length > 0) {
-        setStep("configure");
+      // Store incomplete entries (multi-meeting courses)
+      setIncompleteEntries(result.incompleteEntries);
+
+      if (result.courses.length > 0 || result.incompleteEntries.length > 0) {
+        if (result.incompleteEntries.length > 0) {
+          setStep("multi-meeting");
+          toast.info(`${result.incompleteEntries.length} course(s) need manual schedule input`, {
+            description: "These courses have multiple meeting times not included in the HTML.",
+          });
+        } else {
+          setStep("configure");
+        }
         toast.success(`Parsed ${result.courses.length} course entries`);
       } else {
         toast.error("No courses found", {
@@ -345,6 +357,7 @@ export default function Home() {
   const handleClear = useCallback(() => {
     setFileName(null);
     setCourses([]);
+    setIncompleteEntries([]);
     setStep("upload");
     setTermDate(undefined);
     setRamadanConfig(undefined);
@@ -481,6 +494,30 @@ export default function Home() {
 
           {/* Animated step transitions */}
           <AnimatePresence mode="wait">
+            {step === "multi-meeting" && (
+              <motion.section
+                key="multi-meeting"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <MultiMeetingEditor
+                  incompleteEntries={incompleteEntries}
+                  nextId={courses.length}
+                  onConfirm={(completedCourses) => {
+                    setCourses((prev) => [...prev, ...completedCourses]);
+                    setIncompleteEntries([]);
+                    setStep("configure");
+                  }}
+                  onSkip={() => {
+                    setIncompleteEntries([]);
+                    setStep("configure");
+                  }}
+                />
+              </motion.section>
+            )}
             {step === "configure" && (
               <motion.section
                 key="configure"

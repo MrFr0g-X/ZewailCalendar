@@ -15,6 +15,7 @@
  *     <p>Room 123</p>
  *   </div>
  *   <!-- A course may have MULTIPLE meeting divs (e.g. Sun + Tue) -->
+ *   <!-- OR a single <p>This class has multiple meeting times</p> -->
  *   <hr>
  */
 
@@ -32,10 +33,20 @@ export interface CourseEntry {
   firstOccurrence: Date | null;
 }
 
+/** A course detected in HTML but missing schedule data (multi-meeting). */
+export interface IncompleteCourseEntry {
+  courseName: string;
+  type: string;
+  termStart: Date | null;
+  termEnd: Date | null;
+}
+
 export interface ParseResult {
   courses: CourseEntry[];
   warnings: string[];
   termEndDate: Date | null;
+  /** Courses that had "multiple meeting times" — need manual input. */
+  incompleteEntries: IncompleteCourseEntry[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -50,6 +61,7 @@ interface RawScheduleInfo {
   subtypeSection: string | null;
   duration: string | null;
   meetings: MeetingInfo[];
+  hasMultipleMeetingTimes: boolean;
 }
 
 /** Walk to the next node in document order (depth-first). */
@@ -67,13 +79,15 @@ function nextInDocumentOrder(node: Node): Node | null {
  * Replicates Python's `get_schedule_item_info(button)`.
  * Traverses DOM forward from `button` until `<hr>`, collecting metadata.
  *
- * Now collects ALL meeting divs (a course may meet on multiple days).
+ * Now collects ALL meeting divs (a course may meet on multiple days)
+ * and detects the "multiple meeting times" marker.
  */
 function getScheduleItemInfo(button: Element): RawScheduleInfo {
   const info: RawScheduleInfo = {
     subtypeSection: null,
     duration: null,
     meetings: [],
+    hasMultipleMeetingTimes: false,
   };
 
   // Track which meeting divs we've already processed
@@ -96,6 +110,11 @@ function getScheduleItemInfo(button: Element): RawScheduleInfo {
         info.subtypeSection = text;
       } else if (text.startsWith("Duration:") && !info.duration) {
         info.duration = text;
+      }
+
+      // Detect "This class has multiple meeting times" marker
+      if (text.includes("multiple meeting times")) {
+        info.hasMultipleMeetingTimes = true;
       }
 
       // Meeting container div — collect ALL of them
@@ -237,6 +256,7 @@ export function parseScheduleHTML(html: string): ParseResult {
   const parser = new DOMParser();
   const doc = parser.parseFromString(cleanHtml, "text/html");
   const courses: CourseEntry[] = [];
+  const incompleteEntries: IncompleteCourseEntry[] = [];
   const warnings: string[] = [];
   let detectedTermEnd: Date | null = null;
   let id = 0;
@@ -247,7 +267,7 @@ export function parseScheduleHTML(html: string): ParseResult {
     warnings.push(
       "No schedule entries found. Make sure you saved the full HTML page from the registration system."
     );
-    return { courses, warnings, termEndDate: null };
+    return { courses, warnings, termEndDate: null, incompleteEntries };
   }
 
   buttons.forEach((button) => {
@@ -275,6 +295,17 @@ export function parseScheduleHTML(html: string): ParseResult {
       if (info.subtypeSection.includes("Laboratory")) type = "Lab";
       else if (info.subtypeSection.includes("Tutorial")) type = "Tutorial";
       else if (info.subtypeSection.includes("Lecture")) type = "Lecture";
+    }
+
+    // Handle "multiple meeting times" — no schedule data in HTML
+    if (info.hasMultipleMeetingTimes && info.meetings.length === 0) {
+      incompleteEntries.push({
+        courseName: title,
+        type,
+        termStart,
+        termEnd,
+      });
+      return;
     }
 
     // If no meetings found, warn
@@ -321,5 +352,5 @@ export function parseScheduleHTML(html: string): ParseResult {
     }
   });
 
-  return { courses, warnings, termEndDate: detectedTermEnd };
+  return { courses, warnings, termEndDate: detectedTermEnd, incompleteEntries };
 }
