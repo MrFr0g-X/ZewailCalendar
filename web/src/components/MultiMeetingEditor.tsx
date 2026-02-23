@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Clock, MapPin, CalendarDays, AlertTriangle, Check } from "lucide-react";
+import { Plus, Trash2, Clock, MapPin, CalendarDays, AlertTriangle, Check, X } from "lucide-react";
 import LiquidGlass from "@/components/LiquidGlass";
 import type { IncompleteCourseEntry, CourseEntry } from "@/lib/scheduleParser";
 
@@ -139,6 +139,10 @@ const MultiMeetingEditor = ({
         });
     };
 
+    const removeCourse = (courseIdx: number) => {
+        setCourseSlots((prev) => prev.filter((_, i) => i !== courseIdx));
+    };
+
     // ── Confirm handler ──
 
     const handleConfirm = () => {
@@ -199,14 +203,14 @@ const MultiMeetingEditor = ({
                                     : `${courseSlots.length} courses have`}{" "}
                                 multiple meeting times that aren&apos;t in the HTML.
                                 Please fill in the schedule below.
-              </p>
-              <p className="text-xs text-amber-400/70 mt-2 leading-relaxed">
-                 This is a manual process  the Self-Service platform doesn't include
-                the full schedule for these courses in the downloaded HTML. You'll need
-                to check the exact meeting days, times, and rooms by clicking on each
-                course in your{" "}
-                <span className="text-amber-300 font-medium">Self-Service account</span>{" "}
-                and entering the info here.
+                            </p>
+                            <p className="text-xs text-amber-400/70 mt-2 leading-relaxed">
+                                This is a manual process  the Self-Service platform doesn't include
+                                the full schedule for these courses in the downloaded HTML. You'll need
+                                to check the exact meeting days, times, and rooms by clicking on each
+                                course in your{" "}
+                                <span className="text-amber-300 font-medium">Self-Service account</span>{" "}
+                                and entering the info here.
                             </p>
                         </div>
                     </div>
@@ -225,9 +229,16 @@ const MultiMeetingEditor = ({
                                     <span className="text-sm font-medium text-foreground truncate">
                                         {course.courseName}
                                     </span>
-                                    <span className="ml-auto text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted/20">
+                                    <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted/20">
                                         {course.type}
                                     </span>
+                                    <button
+                                        onClick={() => removeCourse(courseIdx)}
+                                        title="Remove this course from schedule"
+                                        className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 </div>
 
                                 {/* Meeting slots */}

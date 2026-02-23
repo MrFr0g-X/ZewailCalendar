@@ -61,7 +61,7 @@ interface RawScheduleInfo {
   subtypeSection: string | null;
   duration: string | null;
   meetings: MeetingInfo[];
-  hasMultipleMeetingTimes: boolean;
+  hasNoScheduleData: boolean;
 }
 
 /** Walk to the next node in document order (depth-first). */
@@ -87,7 +87,7 @@ function getScheduleItemInfo(button: Element): RawScheduleInfo {
     subtypeSection: null,
     duration: null,
     meetings: [],
-    hasMultipleMeetingTimes: false,
+    hasNoScheduleData: false,
   };
 
   // Track which meeting divs we've already processed
@@ -112,9 +112,9 @@ function getScheduleItemInfo(button: Element): RawScheduleInfo {
         info.duration = text;
       }
 
-      // Detect "This class has multiple meeting times" marker
-      if (text.includes("multiple meeting times")) {
-        info.hasMultipleMeetingTimes = true;
+      // Detect missing schedule markers
+      if (text.includes("multiple meeting times") || text === "No schedule") {
+        info.hasNoScheduleData = true;
       }
 
       // Meeting container div — collect ALL of them
@@ -297,8 +297,8 @@ export function parseScheduleHTML(html: string): ParseResult {
       else if (info.subtypeSection.includes("Lecture")) type = "Lecture";
     }
 
-    // Handle "multiple meeting times" — no schedule data in HTML
-    if (info.hasMultipleMeetingTimes && info.meetings.length === 0) {
+    // Handle missing schedule data ("multiple meeting times" or "No schedule")
+    if (info.hasNoScheduleData && info.meetings.length === 0) {
       incompleteEntries.push({
         courseName: title,
         type,
