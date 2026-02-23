@@ -14,6 +14,7 @@
  *     <p>Monday</p>
  *     <p>Room 123</p>
  *   </div>
+ *   <!-- A course may have MULTIPLE meeting divs (e.g. Sun + Tue) -->
  *   <hr>
  */
 
@@ -39,12 +40,16 @@ export interface ParseResult {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-interface RawScheduleInfo {
-  subtypeSection: string | null;
-  duration: string | null;
+interface MeetingInfo {
   meetingTime: string | null;
   meetingDay: string | null;
   location: string | null;
+}
+
+interface RawScheduleInfo {
+  subtypeSection: string | null;
+  duration: string | null;
+  meetings: MeetingInfo[];
 }
 
 /** Walk to the next node in document order (depth-first). */
@@ -61,15 +66,18 @@ function nextInDocumentOrder(node: Node): Node | null {
 /**
  * Replicates Python's `get_schedule_item_info(button)`.
  * Traverses DOM forward from `button` until `<hr>`, collecting metadata.
+ *
+ * Now collects ALL meeting divs (a course may meet on multiple days).
  */
 function getScheduleItemInfo(button: Element): RawScheduleInfo {
   const info: RawScheduleInfo = {
     subtypeSection: null,
     duration: null,
-    meetingTime: null,
-    meetingDay: null,
-    location: null,
+    meetings: [],
   };
+
+  // Track which meeting divs we've already processed
+  const processedDivs = new Set<Element>();
 
   let node: Node | null = button;
   while (node) {
@@ -90,19 +98,23 @@ function getScheduleItemInfo(button: Element): RawScheduleInfo {
         info.duration = text;
       }
 
-      // Meeting container div
+      // Meeting container div — collect ALL of them
       if (
         el.tagName === "DIV" &&
         el.hasAttribute("class") &&
         Array.from(el.classList).some((cls) =>
           cls.includes("WithWidth-ScheduleItem--meeting")
-        )
+        ) &&
+        !processedDivs.has(el)
       ) {
+        processedDivs.add(el);
         const pElements = el.querySelectorAll("p");
         if (pElements.length >= 3) {
-          info.meetingTime = (pElements[0].textContent ?? "").trim();
-          info.meetingDay = (pElements[1].textContent ?? "").trim();
-          info.location = (pElements[2].textContent ?? "").trim();
+          info.meetings.push({
+            meetingTime: (pElements[0].textContent ?? "").trim(),
+            meetingDay: (pElements[1].textContent ?? "").trim(),
+            location: (pElements[2].textContent ?? "").trim(),
+          });
         }
       }
     }
@@ -154,11 +166,76 @@ function computeFirstOccurrence(termStart: Date, dayName: string): Date | null {
   return null;
 }
 
+// ── MHT / MHTML support ─────────────────────────────────────────────────
+
+/**
+ * Extract the HTML body from an MHTML (`.mht`) file.
+ *
+ * MHTML files are MIME multipart archives. The first `text/html` part
+ * contains the page HTML — that's all we need.
+ */
+export function extractHtmlFromMht(raw: string): string {
+  // Find the boundary from the Content-Type header
+  const boundaryMatch = raw.match(/boundary="?([^\s"]+)"?/i);
+  if (!boundaryMatch) {
+    // No MIME boundary — maybe it's just HTML already
+    return raw;
+  }
+
+  const boundary = boundaryMatch[1];
+  const parts = raw.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+
+  for (const part of parts) {
+    // Look for the text/html part
+    if (/Content-Type:\s*text\/html/i.test(part)) {
+      // Check encoding
+      const isBase64 = /Content-Transfer-Encoding:\s*base64/i.test(part);
+      const isQP = /Content-Transfer-Encoding:\s*quoted-printable/i.test(part);
+
+      // Extract the body (everything after the blank line separating headers from content)
+      const bodyStart = part.indexOf("\r\n\r\n");
+      const bodyStartLF = part.indexOf("\n\n");
+      const start = bodyStart >= 0 ? bodyStart + 4 : (bodyStartLF >= 0 ? bodyStartLF + 2 : -1);
+      if (start < 0) continue;
+
+      let body = part.substring(start).trim();
+
+      if (isBase64) {
+        try {
+          body = atob(body.replace(/\s/g, ""));
+        } catch {
+          continue;
+        }
+      } else if (isQP) {
+        // Decode quoted-printable
+        body = body
+          .replace(/=\r?\n/g, "")                     // soft line breaks
+          .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) =>   // encoded chars
+            String.fromCharCode(parseInt(hex, 16))
+          );
+      }
+
+      return body;
+    }
+  }
+
+  // Fallback — return as-is (might be plain HTML saved with .mht extension)
+  return raw;
+}
+
 // ── Main parser ──────────────────────────────────────────────────────────
 
 export function parseScheduleHTML(html: string): ParseResult {
+  // Auto-detect MHT format and extract HTML if needed
+  const isLikelyMht =
+    html.trimStart().startsWith("From:") ||
+    html.trimStart().startsWith("MIME-Version:") ||
+    html.includes("Content-Type: multipart/");
+
+  const cleanHtml = isLikelyMht ? extractHtmlFromMht(html) : html;
+
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+  const doc = parser.parseFromString(cleanHtml, "text/html");
   const courses: CourseEntry[] = [];
   const warnings: string[] = [];
   let detectedTermEnd: Date | null = null;
@@ -192,17 +269,6 @@ export function parseScheduleHTML(html: string): ParseResult {
       }
     }
 
-    // Parse meeting time
-    let startTime = "";
-    let endTime = "";
-    if (info.meetingTime) {
-      const times = info.meetingTime.split("-").map((s) => s.trim());
-      if (times.length === 2) {
-        startTime = convert12to24(times[0]);
-        endTime = convert12to24(times[1]);
-      }
-    }
-
     // Determine category
     let type = "Lecture";
     if (info.subtypeSection) {
@@ -211,29 +277,47 @@ export function parseScheduleHTML(html: string): ParseResult {
       else if (info.subtypeSection.includes("Lecture")) type = "Lecture";
     }
 
-    // Compute first occurrence
-    const meetingDay = info.meetingDay ?? "";
-    let firstOccurrence: Date | null = null;
-    if (termStart && meetingDay) {
-      firstOccurrence = computeFirstOccurrence(termStart, meetingDay);
+    // If no meetings found, warn
+    if (info.meetings.length === 0) {
+      warnings.push(`Could not determine schedule for "${title}" — missing meeting info.`);
+      return;
     }
 
-    if (firstOccurrence) {
-      courses.push({
-        id: String(++id),
-        courseName: title,
-        courseCode: "",
-        day: meetingDay,
-        startTime,
-        endTime,
-        location: info.location ?? "TBA",
-        type,
-        termStart,
-        termEnd,
-        firstOccurrence,
-      });
-    } else {
-      warnings.push(`Could not determine schedule for "${title}" — missing day or date info.`);
+    // Create a CourseEntry for EACH meeting (handles multi-day courses)
+    for (const meeting of info.meetings) {
+      let startTime = "";
+      let endTime = "";
+      if (meeting.meetingTime) {
+        const times = meeting.meetingTime.split("-").map((s) => s.trim());
+        if (times.length === 2) {
+          startTime = convert12to24(times[0]);
+          endTime = convert12to24(times[1]);
+        }
+      }
+
+      const meetingDay = meeting.meetingDay ?? "";
+      let firstOccurrence: Date | null = null;
+      if (termStart && meetingDay) {
+        firstOccurrence = computeFirstOccurrence(termStart, meetingDay);
+      }
+
+      if (firstOccurrence) {
+        courses.push({
+          id: String(++id),
+          courseName: title,
+          courseCode: "",
+          day: meetingDay,
+          startTime,
+          endTime,
+          location: meeting.location ?? "TBA",
+          type,
+          termStart,
+          termEnd,
+          firstOccurrence,
+        });
+      } else {
+        warnings.push(`Could not determine schedule for "${title}" on ${meetingDay || "unknown day"} — missing day or date info.`);
+      }
     }
   });
 

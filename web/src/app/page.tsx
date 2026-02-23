@@ -280,12 +280,10 @@ export default function Home() {
 
   // ── Ramadan detection: triggers when courses are loaded ──
   useEffect(() => {
-    console.log("[Ramadan] useEffect triggered, courses.length =", courses.length);
     if (courses.length === 0) return;
 
     // Use the first course's termStart year for Ramadan lookup
     const firstCourse = courses.find((c) => c.termStart);
-    console.log("[Ramadan] firstCourse with termStart:", firstCourse?.courseName, "termStart:", firstCourse?.termStart, "termEnd:", firstCourse?.termEnd);
     if (!firstCourse?.termStart) {
       setRamadanChecked(true);
       return;
@@ -294,9 +292,7 @@ export default function Home() {
     let cancelled = false;
     const checkRamadan = async () => {
       const year = firstCourse.termStart!.getFullYear();
-      console.log("[Ramadan] Fetching Ramadan dates for year", year);
       const dates = await fetchRamadanDates(year);
-      console.log("[Ramadan] Fetched dates:", dates);
 
       if (cancelled) return;
 
@@ -309,7 +305,6 @@ export default function Home() {
             dates.end
           )
         ) {
-          console.log("[Ramadan] OVERLAP DETECTED! Showing dialog...");
           setRamadanDates(dates);
           setShowRamadanDialog(true);
         } else {

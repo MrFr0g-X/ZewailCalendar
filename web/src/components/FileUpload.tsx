@@ -15,7 +15,7 @@ const FileUpload = ({ onFileLoaded, fileName, onClear }: FileUploadProps) => {
 
   const handleFile = useCallback(
     (file: File) => {
-      if (!file.name.endsWith(".html") && !file.name.endsWith(".htm")) return;
+      if (!file.name.endsWith(".html") && !file.name.endsWith(".htm") && !file.name.endsWith(".mht") && !file.name.endsWith(".mhtml")) return;
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
@@ -107,12 +107,12 @@ const FileUpload = ({ onFileLoaded, fileName, onClear }: FileUploadProps) => {
               Drop your schedule file here
             </p>
             <p className="text-sm text-muted-foreground">
-              or click to browse · accepts <span className="text-primary">.html</span> files
+              or click to browse  accepts <span className="text-primary">.html</span> and <span className="text-primary">.mht</span> files
             </p>
           </div>
           <input
             type="file"
-            accept=".html,.htm"
+            accept=".html,.htm,.mht,.mhtml"
             onChange={handleChange}
             className="hidden"
           />
