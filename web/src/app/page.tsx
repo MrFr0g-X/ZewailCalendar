@@ -11,9 +11,19 @@ import TermDateSelector from "@/components/TermDateSelector";
 import GenerateButton from "@/components/GenerateButton";
 import SuccessState from "@/components/SuccessState";
 import AuroraBackground from "@/components/AuroraBackground";
+import LiquidGlass from "@/components/LiquidGlass";
+import RamadanDynamicIsland from "@/components/RamadanDynamicIsland";
 import { parseScheduleHTML, CourseEntry } from "@/lib/scheduleParser";
 import { generateICS, downloadICS, toGoogleCalendarEvents } from "@/lib/icsGenerator";
 import { toast } from "@/components/ui/sonner";
+import RamadanScheduleDialog from "@/components/RamadanScheduleDialog";
+import {
+  type RamadanConfig,
+  type RamadanVersion,
+  fetchRamadanDates,
+  doesTermOverlapRamadan,
+} from "@/lib/ramadanSchedule";
+import { Moon } from "lucide-react";
 
 type AppStep = "upload" | "configure" | "success";
 
@@ -104,12 +114,18 @@ export default function Home() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const hasRestoredRef = useRef(false);
 
+  // ── Ramadan state ──
+  const [ramadanConfig, setRamadanConfig] = useState<RamadanConfig | undefined>();
+  const [showRamadanDialog, setShowRamadanDialog] = useState(false);
+  const [ramadanDates, setRamadanDates] = useState<{ start: Date; end: Date } | null>(null);
+  const [ramadanChecked, setRamadanChecked] = useState(false);
+
   // Send events to Google Calendar (extracted so it can be called from restore flow too)
   const sendToGoogleCalendar = useCallback(
     async (coursesToSend: CourseEntry[], termDateToUse: Date) => {
       setGoogleLoading(true);
       try {
-        const events = toGoogleCalendarEvents(coursesToSend, termDateToUse);
+        const events = toGoogleCalendarEvents(coursesToSend, termDateToUse, ramadanConfig);
         const res = await fetch("/api/google-calendar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -236,11 +252,78 @@ export default function Home() {
     }
   }, []);
 
+  // ── Ramadan detection: triggers when courses are loaded ──
+  useEffect(() => {
+    if (courses.length === 0) return;
+
+    // Use the first course's termStart year for Ramadan lookup
+    const firstCourse = courses.find((c) => c.termStart);
+    if (!firstCourse?.termStart) {
+      setRamadanChecked(true);
+      return;
+    }
+
+    let cancelled = false;
+    const checkRamadan = async () => {
+      const year = firstCourse.termStart!.getFullYear();
+      const dates = await fetchRamadanDates(year);
+
+      if (cancelled) return;
+
+      if (dates && firstCourse.termStart && firstCourse.termEnd) {
+        if (
+          doesTermOverlapRamadan(
+            firstCourse.termStart,
+            firstCourse.termEnd,
+            dates.start,
+            dates.end
+          )
+        ) {
+          setRamadanDates(dates);
+          setShowRamadanDialog(true);
+        } else {
+          setRamadanConfig(undefined);
+        }
+      } else {
+        setRamadanConfig(undefined);
+      }
+      setRamadanChecked(true);
+    };
+
+    setRamadanChecked(false);
+    checkRamadan();
+    return () => {
+      cancelled = true;
+    };
+  }, [courses]);
+
+  const handleRamadanSelect = useCallback(
+    (version: RamadanVersion) => {
+      if (ramadanDates) {
+        setRamadanConfig({
+          version,
+          ramadanStart: ramadanDates.start,
+          ramadanEnd: ramadanDates.end,
+        });
+      }
+      setShowRamadanDialog(false);
+    },
+    [ramadanDates]
+  );
+
+  const handleRamadanSkip = useCallback(() => {
+    setRamadanConfig(undefined);
+    setShowRamadanDialog(false);
+  }, []);
+
   const handleClear = useCallback(() => {
     setFileName(null);
     setCourses([]);
     setStep("upload");
     setTermDate(undefined);
+    setRamadanConfig(undefined);
+    setRamadanDates(null);
+    setRamadanChecked(false);
     setIcsContent("");
   }, []);
 
@@ -248,12 +331,12 @@ export default function Home() {
     if (!termDate || courses.length === 0) return;
     setLoading(true);
     setTimeout(() => {
-      const ics = generateICS(courses, termDate);
+      const ics = generateICS(courses, termDate, ramadanConfig);
       setIcsContent(ics);
       setLoading(false);
       setStep("success");
     }, 800);
-  }, [termDate, courses]);
+  }, [termDate, courses, ramadanConfig]);
 
   const handleDownload = useCallback(() => {
     if (icsContent) downloadICS(icsContent);
@@ -311,129 +394,170 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
-      <AuroraBackground />
+      {/* Dynamic Island - Ramadan timing indicator */}
+      <RamadanDynamicIsland
+        active={!!ramadanConfig}
+        onClick={() => setShowRamadanDialog(true)}
+      />
 
-      <div className="relative w-full max-w-lg space-y-8">
-        {/* Hero */}
-        <motion.header
-          className="text-center space-y-3"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...springTransition, delay: 0.1 }}
-        >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ ...springTransition, delay: 0.2 }}
-            className="flex justify-center mb-2"
-          >
-            <Image
-              src="/logo.png"
-              alt="ZewailCalendar"
-              width={72}
-              height={72}
-              className="rounded-2xl"
-              priority
-            />
-          </motion.div>
-          <motion.h1
-            className="text-3xl sm:text-4xl font-bold tracking-tight"
-            initial={{ opacity: 0, y: 10 }}
+      <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+        <AuroraBackground />
+
+        <div className="relative w-full max-w-lg space-y-8">
+          {/* Hero */}
+          <motion.header
+            className="text-center space-y-3"
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ ...springTransition, delay: 0.3 }}
+            transition={{ ...springTransition, delay: 0.1 }}
           >
-            <span className="gradient-text">ZewailCalendar</span>
-          </motion.h1>
-          <motion.p
-            className="text-muted-foreground text-sm sm:text-base max-w-sm mx-auto"
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ ...springTransition, delay: 0.2 }}
+              className="flex justify-center mb-2"
+            >
+              <Image
+                src="/logo.png"
+                alt="ZewailCalendar"
+                width={72}
+                height={72}
+                className="rounded-2xl"
+                priority
+              />
+            </motion.div>
+            <motion.h1
+              className="text-3xl sm:text-4xl font-bold tracking-tight"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springTransition, delay: 0.3 }}
+            >
+              <span className="gradient-text">ZewailCalendar</span>
+            </motion.h1>
+            <motion.p
+              className="text-muted-foreground text-sm sm:text-base max-w-sm mx-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.45 }}
+            >
+              Convert your university schedule into a calendar file in seconds
+            </motion.p>
+          </motion.header>
+
+          {/* File Upload */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...springTransition, delay: 0.4 }}
+          >
+            <FileUpload onFileLoaded={handleFileLoaded} fileName={fileName} onClear={handleClear} />
+          </motion.section>
+
+          {/* Animated step transitions */}
+          <AnimatePresence mode="wait">
+            {step === "configure" && (
+              <motion.section
+                key="configure"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="space-y-6"
+              >
+                <motion.div variants={staggerItem}>
+                  <SchedulePreview courses={courses} />
+                </motion.div>
+                <motion.div variants={staggerItem}>
+                  <TermDateSelector date={termDate} onDateChange={setTermDate} />
+                </motion.div>
+
+                {/* Ramadan timing indicator */}
+                {ramadanConfig && (
+                  <motion.div variants={staggerItem}>
+                    <button
+                      onClick={() => setShowRamadanDialog(true)}
+                      className="w-full group"
+                    >
+                      <LiquidGlass intensity="sm" tilt={false} className="liquid-glass-interactive p-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Moon className="h-4 w-4 text-amber-500" />
+                          <span className="text-amber-500 font-medium">
+                            Ramadan Timing Active
+                          </span>
+                          <span className="text-muted-foreground text-xs ml-auto">
+                            {ramadanConfig.version === "v1" ? "V1 — Dhuhr Break" : "V2 — Continuous"}
+                          </span>
+                          <span className="text-muted-foreground/50 text-xs">Change</span>
+                        </div>
+                      </LiquidGlass>
+                    </button>
+                  </motion.div>
+                )}
+
+                <motion.div variants={staggerItem}>
+                  <GenerateButton
+                    disabled={!termDate || courses.length === 0 || !ramadanChecked}
+                    loading={loading}
+                    onClick={handleGenerate}
+                  />
+                </motion.div>
+              </motion.section>
+            )}
+
+            {step === "success" && (
+              <motion.section
+                key="success"
+                variants={stepVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <SuccessState
+                  onDownload={handleDownload}
+                  onReset={handleClear}
+                  onGoogleCalendar={handleGoogleCalendar}
+                  googleCalendarLoading={googleLoading}
+                  isSignedIn={isSignedIn}
+                />
+              </motion.section>
+            )}
+          </AnimatePresence>
+
+          {/* Ramadan schedule selection dialog */}
+          {ramadanDates && (
+            <RamadanScheduleDialog
+              open={showRamadanDialog}
+              ramadanStart={ramadanDates.start}
+              ramadanEnd={ramadanDates.end}
+              onSelect={handleRamadanSelect}
+              onSkip={handleRamadanSkip}
+            />
+          )}
+
+          {/* Footer */}
+          <motion.footer
+            className="text-center space-y-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.45 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
           >
-            Convert your university schedule into a calendar file in seconds
-          </motion.p>
-        </motion.header>
-
-        {/* File Upload */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...springTransition, delay: 0.4 }}
-        >
-          <FileUpload onFileLoaded={handleFileLoaded} fileName={fileName} onClear={handleClear} />
-        </motion.section>
-
-        {/* Animated step transitions */}
-        <AnimatePresence mode="wait">
-          {step === "configure" && (
-            <motion.section
-              key="configure"
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="space-y-6"
-            >
-              <motion.div variants={staggerItem}>
-                <SchedulePreview courses={courses} />
-              </motion.div>
-              <motion.div variants={staggerItem}>
-                <TermDateSelector date={termDate} onDateChange={setTermDate} />
-              </motion.div>
-              <motion.div variants={staggerItem}>
-                <GenerateButton
-                  disabled={!termDate || courses.length === 0}
-                  loading={loading}
-                  onClick={handleGenerate}
-                />
-              </motion.div>
-            </motion.section>
-          )}
-
-          {step === "success" && (
-            <motion.section
-              key="success"
-              variants={stepVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-            >
-              <SuccessState
-                onDownload={handleDownload}
-                onReset={handleClear}
-                onGoogleCalendar={handleGoogleCalendar}
-                googleCalendarLoading={googleLoading}
-                isSignedIn={isSignedIn}
-              />
-            </motion.section>
-          )}
-        </AnimatePresence>
-
-        {/* Footer */}
-        <motion.footer
-          className="text-center space-y-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
-          <p className="text-xs text-muted-foreground/50">
-            All processing happens locally in your browser · No data is uploaded
-          </p>
-          <p className="text-[10px] text-muted-foreground/20">
-            developed by{" "}
-            <a
-              href="https://github.com/MrFr0g-X"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-muted-foreground/40 transition-colors"
-            >
-              Hothifa Hamdan
-            </a>
-          </p>
-        </motion.footer>
+            <p className="text-xs text-muted-foreground/50">
+              All processing happens locally in your browser · No data is uploaded
+            </p>
+            <p className="text-[10px] text-muted-foreground/20">
+              developed by{" "}
+              <a
+                href="https://github.com/MrFr0g-X"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-muted-foreground/40 transition-colors"
+              >
+                Hothifa Hamdan
+              </a>
+            </p>
+          </motion.footer>
+        </div>
       </div>
-    </div>
     </>
   );
 }

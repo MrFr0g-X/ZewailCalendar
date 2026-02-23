@@ -1,4 +1,9 @@
 import type { CourseEntry } from "./scheduleParser";
+import {
+  type RamadanConfig,
+  isDateInRamadan,
+  mapToRamadanTime,
+} from "./ramadanSchedule";
 
 // ── ICS date formatting helpers ──────────────────────────────────────────
 
@@ -37,7 +42,11 @@ function formatUtcNow(): string {
 
 // ── ICS generation ───────────────────────────────────────────────────────
 
-export function generateICS(courses: CourseEntry[], termEndDate: Date): string {
+export function generateICS(
+  courses: CourseEntry[],
+  termEndDate: Date,
+  ramadanConfig?: RamadanConfig
+): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -61,29 +70,80 @@ export function generateICS(courses: CourseEntry[], termEndDate: Date): string {
   courses.forEach((course, i) => {
     if (!course.firstOccurrence) return;
 
-    const uid = `zewail-${i}-${Date.now()}@zewailcalendar`;
-    const dtstart = formatLocalDatetime(course.firstOccurrence, course.startTime);
-    const dtend = formatLocalDatetime(course.firstOccurrence, course.endTime);
-    const until = formatUntilDate(termEndDate);
-
     const summary =
       course.type && course.type !== "Lecture"
         ? `${course.courseName} (${course.type})`
         : course.courseName;
 
-    lines.push(
-      "",
-      "BEGIN:VEVENT",
-      `UID:${uid}`,
-      `DTSTAMP:${formatUtcNow()}`,
-      `DTSTART;TZID=Africa/Cairo:${dtstart}`,
-      `DTEND;TZID=Africa/Cairo:${dtend}`,
-      `RRULE:FREQ=WEEKLY;UNTIL=${until}`,
-      `SUMMARY:${summary}`,
-      `LOCATION:${course.location}`,
-      `DESCRIPTION:${course.type}`,
-      "END:VEVENT"
-    );
+    if (!ramadanConfig) {
+      // ── Standard mode: single VEVENT with RRULE ──
+      const uid = `zewail-${i}-${Date.now()}@zewailcalendar`;
+      const dtstart = formatLocalDatetime(course.firstOccurrence, course.startTime);
+      const dtend = formatLocalDatetime(course.firstOccurrence, course.endTime);
+      const until = formatUntilDate(termEndDate);
+
+      lines.push(
+        "",
+        "BEGIN:VEVENT",
+        `UID:${uid}`,
+        `DTSTAMP:${formatUtcNow()}`,
+        `DTSTART;TZID=Africa/Cairo:${dtstart}`,
+        `DTEND;TZID=Africa/Cairo:${dtend}`,
+        `RRULE:FREQ=WEEKLY;UNTIL=${until}`,
+        `SUMMARY:${summary}`,
+        `LOCATION:${course.location}`,
+        `DESCRIPTION:${course.type}`,
+        "END:VEVENT"
+      );
+    } else {
+      // ── Ramadan mode: individual VEVENTs per week ──
+      const occurrenceDate = new Date(course.firstOccurrence);
+
+      for (let week = 0; occurrenceDate <= termEndDate; week++) {
+        let eventStartTime = course.startTime;
+        let eventEndTime = course.endTime;
+        let eventSummary = summary;
+
+        if (
+          isDateInRamadan(
+            occurrenceDate,
+            ramadanConfig.ramadanStart,
+            ramadanConfig.ramadanEnd
+          )
+        ) {
+          const mapped = mapToRamadanTime(
+            course.startTime,
+            course.endTime,
+            ramadanConfig.version
+          );
+          if (mapped) {
+            eventStartTime = mapped.start;
+            eventEndTime = mapped.end;
+            eventSummary = `${summary} 🌙`;
+          }
+        }
+
+        const dtstart = formatLocalDatetime(occurrenceDate, eventStartTime);
+        const dtend = formatLocalDatetime(occurrenceDate, eventEndTime);
+        const uid = `zewail-${i}-w${week}-${Date.now()}@zewailcalendar`;
+
+        lines.push(
+          "",
+          "BEGIN:VEVENT",
+          `UID:${uid}`,
+          `DTSTAMP:${formatUtcNow()}`,
+          `DTSTART;TZID=Africa/Cairo:${dtstart}`,
+          `DTEND;TZID=Africa/Cairo:${dtend}`,
+          `SUMMARY:${eventSummary}`,
+          `LOCATION:${course.location}`,
+          `DESCRIPTION:${course.type}`,
+          "END:VEVENT"
+        );
+
+        // Advance to next week
+        occurrenceDate.setDate(occurrenceDate.getDate() + 7);
+      }
+    }
   });
 
   lines.push("", "END:VCALENDAR");
@@ -112,7 +172,7 @@ export interface GoogleCalendarEvent {
   description: string;
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
-  recurrence: string[];
+  recurrence?: string[];
 }
 
 /** Convert "HH:MM" + Date → ISO 8601 datetime string "YYYY-MM-DDTHH:MM:00" */
@@ -126,27 +186,88 @@ function toISOWithTime(date: Date, time: string): string {
 
 export function toGoogleCalendarEvents(
   courses: CourseEntry[],
-  termEndDate: Date
+  termEndDate: Date,
+  ramadanConfig?: RamadanConfig
 ): GoogleCalendarEvent[] {
-  return courses
-    .filter((c) => c.firstOccurrence)
-    .map((course) => {
-      const startISO = toISOWithTime(course.firstOccurrence!, course.startTime);
-      const endISO = toISOWithTime(course.firstOccurrence!, course.endTime);
-      const until = formatUntilDate(termEndDate);
+  if (!ramadanConfig) {
+    // Standard mode — single recurring event per course
+    return courses
+      .filter((c) => c.firstOccurrence)
+      .map((course) => {
+        const startISO = toISOWithTime(course.firstOccurrence!, course.startTime);
+        const endISO = toISOWithTime(course.firstOccurrence!, course.endTime);
+        const until = formatUntilDate(termEndDate);
 
-      const summary =
+        const summary =
+          course.type && course.type !== "Lecture"
+            ? `${course.courseName} (${course.type})`
+            : course.courseName;
+
+        return {
+          summary,
+          location: course.location,
+          description: course.type,
+          start: { dateTime: startISO, timeZone: "Africa/Cairo" },
+          end: { dateTime: endISO, timeZone: "Africa/Cairo" },
+          recurrence: [`RRULE:FREQ=WEEKLY;UNTIL=${until}`],
+        };
+      });
+  }
+
+  // Ramadan mode — individual events per week
+  const events: GoogleCalendarEvent[] = [];
+
+  courses
+    .filter((c) => c.firstOccurrence)
+    .forEach((course) => {
+      const baseSummary =
         course.type && course.type !== "Lecture"
           ? `${course.courseName} (${course.type})`
           : course.courseName;
 
-      return {
-        summary,
-        location: course.location,
-        description: course.type,
-        start: { dateTime: startISO, timeZone: "Africa/Cairo" },
-        end: { dateTime: endISO, timeZone: "Africa/Cairo" },
-        recurrence: [`RRULE:FREQ=WEEKLY;UNTIL=${until}`],
-      };
+      const occurrenceDate = new Date(course.firstOccurrence!);
+
+      while (occurrenceDate <= termEndDate) {
+        let eventStartTime = course.startTime;
+        let eventEndTime = course.endTime;
+        let summary = baseSummary;
+
+        if (
+          isDateInRamadan(
+            occurrenceDate,
+            ramadanConfig.ramadanStart,
+            ramadanConfig.ramadanEnd
+          )
+        ) {
+          const mapped = mapToRamadanTime(
+            course.startTime,
+            course.endTime,
+            ramadanConfig.version
+          );
+          if (mapped) {
+            eventStartTime = mapped.start;
+            eventEndTime = mapped.end;
+            summary = `${baseSummary} 🌙`;
+          }
+        }
+
+        events.push({
+          summary,
+          location: course.location,
+          description: course.type,
+          start: {
+            dateTime: toISOWithTime(occurrenceDate, eventStartTime),
+            timeZone: "Africa/Cairo",
+          },
+          end: {
+            dateTime: toISOWithTime(occurrenceDate, eventEndTime),
+            timeZone: "Africa/Cairo",
+          },
+        });
+
+        occurrenceDate.setDate(occurrenceDate.getDate() + 7);
+      }
     });
+
+  return events;
 }
